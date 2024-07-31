@@ -66,9 +66,9 @@ const HomeScreen: React.FC = () => {
     };
 
     fetchLocation();
-    const intervalId = setInterval(fetchLocation, 30000); // Fetch every 30 seconds
+    const intervalId = setInterval(fetchLocation, 30000);
 
-    return () => clearInterval(intervalId); // Clear interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
