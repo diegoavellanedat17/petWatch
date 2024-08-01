@@ -9,6 +9,11 @@ To start Metro, run the following command from the _root_ of your React Native p
 
 ```bash
 # using npm
+nvm use
+```
+
+```bash
+# using npm
 npx react-native start
 ```
 
@@ -31,6 +36,8 @@ mkdir -p android/app/src/main/assets
 
 cd android
 ./gradlew assembleRelease
+
+cd app/build/outputs/apk/release/
 
 adb install app-release.apk
 

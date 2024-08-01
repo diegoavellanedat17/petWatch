@@ -6,15 +6,25 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
+  Image,
 } from 'react-native';
-import ButtonComponent from '../components/ButtonComponent';
 import Geolocation from 'react-native-geolocation-service';
+import {
+  accelerometer,
+  setUpdateIntervalForType,
+  SensorData,
+  SensorTypes,
+} from 'react-native-sensors';
+import {Subscription} from 'rxjs';
+import ButtonComponent from '../components/ButtonComponent';
 
+// Handle button press
 const handlePress = () => {
-  console.log('rpresset');
+  console.log('Button Pressed');
   Alert.alert('Button Pressed', 'You pressed the button!');
 };
 
+// Request location permission for Android
 const requestLocationPermission = async () => {
   if (Platform.OS === 'android') {
     try {
@@ -43,47 +53,72 @@ const HomeScreen: React.FC = () => {
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [accelData, setAccelData] = useState<SensorData | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'android') {
-      requestLocationPermission();
-    }
-    const fetchLocation = () => {
-      Geolocation.getCurrentPosition(
-        position => {
-          const {latitude, longitude} = position.coords;
-          setLocation({latitude, longitude});
-        },
-        error => {
-          console.error(error);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 10000,
-        },
-      );
+    const requestPermissionAndFetchLocation = async () => {
+      if (await requestLocationPermission()) {
+        Geolocation.getCurrentPosition(
+          position => {
+            const {latitude, longitude} = position.coords;
+            setLocation({latitude, longitude});
+          },
+          error => {
+            console.error(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 10000,
+          },
+        );
+      }
     };
 
-    fetchLocation();
-    const intervalId = setInterval(fetchLocation, 30000);
+    requestPermissionAndFetchLocation();
 
-    return () => clearInterval(intervalId);
+    const locationIntervalId = setInterval(
+      requestPermissionAndFetchLocation,
+      30000,
+    );
+
+    setUpdateIntervalForType(SensorTypes.accelerometer, 1000);
+    const accelSubscription: Subscription = accelerometer.subscribe({
+      next: (data: SensorData) => setAccelData(data),
+      error: error => console.error(error),
+    });
+
+    return () => {
+      clearInterval(locationIntervalId);
+      accelSubscription.unsubscribe();
+    };
   }, []);
 
   return (
     <View style={styles.container}>
+      <Image source={require('../assets/app-icon.png')} style={styles.icon} />
       <Text style={styles.title}>Pet Watch</Text>
       <Text style={styles.subtitle}>Version 1</Text>
-      <ButtonComponent title="Press Me" onPress={handlePress} />
       {location && (
-        <View style={styles.locationContainer}>
-          <Text style={styles.locationText}>Latitude: {location.latitude}</Text>
-          <Text style={styles.locationText}>
-            Longitude: {location.longitude}
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoText}>Latitude: {location.latitude}</Text>
+          <Text style={styles.infoText}>Longitude: {location.longitude}</Text>
+        </View>
+      )}
+      {accelData && (
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoText}>
+            Accelerometer X: {accelData.x.toFixed(2)}
+          </Text>
+          <Text style={styles.infoText}>
+            Accelerometer Y: {accelData.y.toFixed(2)}
+          </Text>
+          <Text style={styles.infoText}>
+            Accelerometer Z: {accelData.z.toFixed(2)}
           </Text>
         </View>
       )}
+      <ButtonComponent title="Press Me" onPress={handlePress} />
     </View>
   );
 };
@@ -94,20 +129,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
+    padding: 20,
+  },
+  icon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 12,
     marginBottom: 20,
   },
-  locationContainer: {
+  infoContainer: {
     marginTop: 20,
+    alignItems: 'center',
   },
-  locationText: {
+  infoText: {
     fontSize: 16,
+    marginBottom: 10,
+  },
+  button: {
+    marginTop: 20,
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
 });
 
