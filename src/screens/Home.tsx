@@ -17,6 +17,7 @@ import {
 } from 'react-native-sensors';
 import {Subscription} from 'rxjs';
 import ButtonComponent from '../components/ButtonComponent';
+// import {API_HOST} from '@env';
 
 // Handle button press
 const handlePress = () => {
@@ -45,6 +46,32 @@ const requestLocationPermission = async () => {
     }
   } else {
     return true; // iOS permissions are handled differently
+  }
+};
+
+const sendCoordinates = async (latitude: number, longitude: number) => {
+  const data = {
+    lat: latitude,
+    lon: longitude,
+    sendDate: new Date().toISOString(),
+  };
+
+  try {
+    const response = await fetch(`http://54.173.182.6:3000/api/coordinates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+
+    console.log('Coordinates sent successfully');
+  } catch (error) {
+    console.error('Error sending coordinates:', error);
   }
 };
 
@@ -77,10 +104,23 @@ const HomeScreen: React.FC = () => {
 
     requestPermissionAndFetchLocation();
 
-    const locationIntervalId = setInterval(
-      requestPermissionAndFetchLocation,
-      30000,
-    );
+    const locationIntervalId = setInterval(() => {
+      Geolocation.getCurrentPosition(
+        position => {
+          const {latitude, longitude} = position.coords;
+          setLocation({latitude, longitude});
+          sendCoordinates(latitude, longitude);
+        },
+        error => {
+          console.error(error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000,
+        },
+      );
+    }, 20000);
 
     setUpdateIntervalForType(SensorTypes.accelerometer, 1000);
     const accelSubscription: Subscription = accelerometer.subscribe({
@@ -118,7 +158,7 @@ const HomeScreen: React.FC = () => {
           </Text>
         </View>
       )}
-      <ButtonComponent title="Press Me" onPress={handlePress} />
+      <ButtonComponent title="Coordinates" onPress={handlePress} />
     </View>
   );
 };
