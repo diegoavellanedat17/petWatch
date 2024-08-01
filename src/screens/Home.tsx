@@ -7,6 +7,7 @@ import {
   PermissionsAndroid,
   Platform,
   Image,
+  TouchableOpacity,
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import {
@@ -17,15 +18,15 @@ import {
 } from 'react-native-sensors';
 import {Subscription} from 'rxjs';
 import ButtonComponent from '../components/ButtonComponent';
+import axios from 'axios';
+
 // import {API_HOST} from '@env';
 
-// Handle button press
 const handlePress = () => {
   console.log('Button Pressed');
   Alert.alert('Button Pressed', 'You pressed the button!');
 };
 
-// Request location permission for Android
 const requestLocationPermission = async () => {
   if (Platform.OS === 'android') {
     try {
@@ -45,11 +46,15 @@ const requestLocationPermission = async () => {
       return false;
     }
   } else {
-    return true; // iOS permissions are handled differently
+    return true;
   }
 };
 
-const sendCoordinates = async (latitude: number, longitude: number) => {
+const sendCoordinates = async (
+  latitude: number,
+  longitude: number,
+  setResponse: React.Dispatch<React.SetStateAction<string>>,
+) => {
   const data = {
     lat: latitude,
     lon: longitude,
@@ -57,21 +62,26 @@ const sendCoordinates = async (latitude: number, longitude: number) => {
   };
 
   try {
-    const response = await fetch(`http://54.173.182.6:3000/api/coordinates`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await axios.post(
+      `http://54.173.182.6:3000/api/coordinates`,
+      data,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
       },
-      body: JSON.stringify(data),
-    });
+    );
 
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
+    setResponse(JSON.stringify(response.data));
+    console.log('Coordinates sent successfully:', response.data);
+  } catch (error: any) {
+    if (axios.isAxiosError(error)) {
+      console.error('Axios error:', error.toJSON());
+      setResponse(`Axios error: ${JSON.stringify(error.toJSON(), null, 2)}`);
+    } else {
+      setResponse(`Error: ${error.message}`);
+      console.error('Error sending coordinates:', error);
     }
-
-    console.log('Coordinates sent successfully');
-  } catch (error) {
-    console.error('Error sending coordinates:', error);
   }
 };
 
@@ -81,6 +91,7 @@ const HomeScreen: React.FC = () => {
     longitude: number;
   } | null>(null);
   const [accelData, setAccelData] = useState<SensorData | null>(null);
+  const [response, setResponse] = useState<string>('');
 
   useEffect(() => {
     const requestPermissionAndFetchLocation = async () => {
@@ -109,7 +120,7 @@ const HomeScreen: React.FC = () => {
         position => {
           const {latitude, longitude} = position.coords;
           setLocation({latitude, longitude});
-          sendCoordinates(latitude, longitude);
+          sendCoordinates(latitude, longitude, setResponse);
         },
         error => {
           console.error(error);
@@ -120,7 +131,7 @@ const HomeScreen: React.FC = () => {
           maximumAge: 10000,
         },
       );
-    }, 20000);
+    }, 10000);
 
     setUpdateIntervalForType(SensorTypes.accelerometer, 1000);
     const accelSubscription: Subscription = accelerometer.subscribe({
@@ -138,7 +149,7 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <Image source={require('../assets/app-icon.png')} style={styles.icon} />
       <Text style={styles.title}>Pet Watch</Text>
-      <Text style={styles.subtitle}>Version 1</Text>
+      <Text style={styles.subtitle}>Version 1.2/Salir</Text>
       {location && (
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>Latitude: {location.latitude}</Text>
@@ -159,6 +170,19 @@ const HomeScreen: React.FC = () => {
         </View>
       )}
       <ButtonComponent title="Coordinates" onPress={handlePress} />
+      <TouchableOpacity
+        style={styles.sendButton}
+        onPress={() =>
+          location &&
+          sendCoordinates(location.latitude, location.longitude, setResponse)
+        }>
+        <Text style={styles.buttonText}>Send Coordinates</Text>
+      </TouchableOpacity>
+      {response && (
+        <View style={styles.responseContainer}>
+          <Text style={styles.responseText}>{response}</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -198,6 +222,28 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     paddingHorizontal: 20,
     paddingVertical: 10,
+  },
+  sendButton: {
+    backgroundColor: '#007BFF',
+    padding: 10,
+    borderRadius: 50,
+    marginTop: 20,
+  },
+  buttonText: {
+    color: '#FFF',
+    fontSize: 16,
+  },
+  responseContainer: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    elevation: 3,
+  },
+  responseText: {
+    fontSize: 16,
+    color: '#333',
   },
 });
 
