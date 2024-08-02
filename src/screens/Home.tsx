@@ -19,8 +19,7 @@ import {
 import {Subscription} from 'rxjs';
 import ButtonComponent from '../components/ButtonComponent';
 import axios from 'axios';
-
-// import {API_HOST} from '@env';
+import BackgroundService from 'react-native-background-actions';
 
 const handlePress = () => {
   console.log('Button Pressed');
@@ -30,7 +29,7 @@ const handlePress = () => {
 const requestLocationPermission = async () => {
   if (Platform.OS === 'android') {
     try {
-      const granted = await PermissionsAndroid.request(
+      const fineLocationGranted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Location Permission',
@@ -40,7 +39,30 @@ const requestLocationPermission = async () => {
           buttonPositive: 'OK',
         },
       );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+
+      const backgroundLocationGranted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+        {
+          title: 'Background Location Permission',
+          message: 'This app needs access to your location in the background.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'Cancel',
+          buttonPositive: 'OK',
+        },
+      );
+
+      return (
+        fineLocationGranted === PermissionsAndroid.RESULTS.GRANTED &&
+        backgroundLocationGranted === PermissionsAndroid.RESULTS.GRANTED
+      );
+    } catch (err) {
+      console.warn(err);
+      return false;
+    }
+  } else if (Platform.OS === 'ios') {
+    try {
+      const response = await Geolocation.requestAuthorization('always');
+      return response === 'granted';
     } catch (err) {
       console.warn(err);
       return false;
@@ -63,7 +85,7 @@ const sendCoordinates = async (
 
   try {
     const response = await axios.post(
-      `http://54.173.182.6:3000/api/coordinates`,
+      'http://54.173.182.6:3000/api/coordinates',
       data,
       {
         headers: {
@@ -85,6 +107,50 @@ const sendCoordinates = async (
   }
 };
 
+const veryIntensiveTask = async (taskDataArguments: any) => {
+  const {delay, setResponse} = taskDataArguments;
+  await new Promise<void>(async resolve => {
+    for (let i = 0; BackgroundService.isRunning(); i++) {
+      console.log('Background task iteration:', i);
+      Geolocation.getCurrentPosition(
+        async position => {
+          const {latitude, longitude} = position.coords;
+          await sendCoordinates(latitude, longitude, setResponse);
+        },
+        error => {
+          console.error('Geolocation error:', error);
+          setResponse(`Geolocation error: ${error.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 60000,
+          maximumAge: 10000,
+        },
+      );
+      await sleep(delay);
+    }
+  });
+};
+
+const sleep = (time: number) =>
+  new Promise<void>(resolve => setTimeout(() => resolve(), time));
+
+const options = {
+  taskName: 'Background Task',
+  taskTitle: 'Background Task Running',
+  taskDesc: 'Fetching coordinates every minute',
+  taskIcon: {
+    name: 'ic_launcher',
+    type: 'mipmap',
+  },
+  color: '#ff00ff',
+  linkingURI: 'yourSchemeHere://chat/jane',
+  parameters: {
+    delay: 60000,
+    setResponse: () => {},
+  },
+};
+
 const HomeScreen: React.FC = () => {
   const [location, setLocation] = useState<{
     latitude: number;
@@ -102,11 +168,11 @@ const HomeScreen: React.FC = () => {
             setLocation({latitude, longitude});
           },
           error => {
-            console.error(error);
+            console.error('Geolocation error:', error);
           },
           {
             enableHighAccuracy: true,
-            timeout: 15000,
+            timeout: 30000,
             maximumAge: 10000,
           },
         );
@@ -123,15 +189,16 @@ const HomeScreen: React.FC = () => {
           sendCoordinates(latitude, longitude, setResponse);
         },
         error => {
-          console.error(error);
+          console.error('Geolocation error:', error);
+          setResponse(`Geolocation error: ${error.message}`);
         },
         {
           enableHighAccuracy: true,
-          timeout: 15000,
+          timeout: 30000,
           maximumAge: 10000,
         },
       );
-    }, 10000);
+    }, 60000);
 
     setUpdateIntervalForType(SensorTypes.accelerometer, 1000);
     const accelSubscription: Subscription = accelerometer.subscribe({
@@ -139,9 +206,30 @@ const HomeScreen: React.FC = () => {
       error: error => console.error(error),
     });
 
+    const startBackgroundTask = async () => {
+      try {
+        const taskOptions = {
+          ...options,
+          parameters: {
+            delay: 60000,
+            setResponse: setResponse,
+          },
+        };
+        await BackgroundService.start(veryIntensiveTask, taskOptions);
+        await BackgroundService.updateNotification({
+          taskDesc: 'Fetching coordinates every minute',
+        });
+      } catch (error) {
+        console.error('Error starting background task:', error);
+      }
+    };
+
+    startBackgroundTask();
+
     return () => {
       clearInterval(locationIntervalId);
       accelSubscription.unsubscribe();
+      BackgroundService.stop();
     };
   }, []);
 
@@ -149,7 +237,7 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <Image source={require('../assets/app-icon.png')} style={styles.icon} />
       <Text style={styles.title}>Pet Watch</Text>
-      <Text style={styles.subtitle}>Version 1.2/Salir</Text>
+      <Text style={styles.subtitle}>Version 1.2/Back</Text>
       {location && (
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>Latitude: {location.latitude}</Text>
