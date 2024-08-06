@@ -17,14 +17,8 @@ import {
   SensorTypes,
 } from 'react-native-sensors';
 import {Subscription} from 'rxjs';
-import ButtonComponent from '../components/ButtonComponent';
 import axios from 'axios';
 import BackgroundService from 'react-native-background-actions';
-
-const handlePress = () => {
-  console.log('Button Pressed');
-  Alert.alert('Button Pressed', 'You pressed the button!');
-};
 
 const requestLocationPermission = async () => {
   if (Platform.OS === 'android') {
@@ -158,6 +152,7 @@ const HomeScreen: React.FC = () => {
   } | null>(null);
   const [accelData, setAccelData] = useState<SensorData | null>(null);
   const [response, setResponse] = useState<string>('');
+  const [isTracking, setIsTracking] = useState<boolean>(false);
 
   useEffect(() => {
     const requestPermissionAndFetchLocation = async () => {
@@ -186,7 +181,9 @@ const HomeScreen: React.FC = () => {
         position => {
           const {latitude, longitude} = position.coords;
           setLocation({latitude, longitude});
-          sendCoordinates(latitude, longitude, setResponse);
+          if (isTracking) {
+            sendCoordinates(latitude, longitude, setResponse);
+          }
         },
         error => {
           console.error('Geolocation error:', error);
@@ -206,6 +203,13 @@ const HomeScreen: React.FC = () => {
       error: error => console.error(error),
     });
 
+    return () => {
+      clearInterval(locationIntervalId);
+      accelSubscription.unsubscribe();
+    };
+  }, [isTracking]);
+
+  useEffect(() => {
     const startBackgroundTask = async () => {
       try {
         const taskOptions = {
@@ -224,20 +228,36 @@ const HomeScreen: React.FC = () => {
       }
     };
 
-    startBackgroundTask();
+    if (isTracking) {
+      startBackgroundTask();
+    } else {
+      BackgroundService.stop();
+    }
 
     return () => {
-      clearInterval(locationIntervalId);
-      accelSubscription.unsubscribe();
-      BackgroundService.stop();
+      BackgroundService.stop(); // Ensure the service stops if the component unmounts
     };
-  }, []);
+  }, [isTracking]);
+
+  const toggleTracking = () => {
+    setIsTracking(prev => !prev);
+  };
 
   return (
     <View style={styles.container}>
-      <Image source={require('../assets/app-icon.png')} style={styles.icon} />
-      <Text style={styles.title}>Pet Watch</Text>
-      <Text style={styles.subtitle}>Version 1.2/Back</Text>
+      <View style={styles.header}>
+        <Image
+          source={require('../assets/app-icon1.png')}
+          style={styles.icon}
+        />
+        <Text style={styles.title}>Pet Watch</Text>
+      </View>
+      <View style={styles.petImageContainer}>
+        <Image
+          source={require('../assets/pet.png')} // Replace with the actual path to your pet image
+          style={styles.petImage}
+        />
+      </View>
       {location && (
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>Latitude: {location.latitude}</Text>
@@ -257,14 +277,15 @@ const HomeScreen: React.FC = () => {
           </Text>
         </View>
       )}
-      <ButtonComponent title="Coordinates" onPress={handlePress} />
       <TouchableOpacity
-        style={styles.sendButton}
-        onPress={() =>
-          location &&
-          sendCoordinates(location.latitude, location.longitude, setResponse)
-        }>
-        <Text style={styles.buttonText}>Send Coordinates</Text>
+        style={[
+          styles.trackingButton,
+          isTracking ? styles.stopButton : styles.startButton,
+        ]}
+        onPress={toggleTracking}>
+        <Text style={styles.buttonText}>
+          {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+        </Text>
       </TouchableOpacity>
       {response && (
         <View style={styles.responseContainer}>
@@ -280,14 +301,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#e0f7fa',
     padding: 20,
   },
   icon: {
-    width: 100,
-    height: 100,
+    width: 50,
+    height: 50,
     borderRadius: 50,
     marginBottom: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'flex-start',
   },
   title: {
     fontSize: 24,
@@ -332,6 +359,37 @@ const styles = StyleSheet.create({
   responseText: {
     fontSize: 16,
     color: '#333',
+  },
+  petImageContainer: {
+    borderRadius: 100,
+    borderWidth: 5,
+    borderColor: '#9FD4C7',
+    padding: 5,
+    marginBottom: 20,
+  },
+  petImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+  },
+  heroTitle: {
+    fontFamily: 'Poppins',
+    fontWeight: '800',
+    margin: 0,
+    padding: 0,
+    color: '#007BFF',
+    fontSize: 50,
+  },
+  trackingButton: {
+    padding: 10,
+    borderRadius: 50,
+    marginTop: 20,
+  },
+  startButton: {
+    backgroundColor: '#007BFF',
+  },
+  stopButton: {
+    backgroundColor: '#FF0000',
   },
 });
 
