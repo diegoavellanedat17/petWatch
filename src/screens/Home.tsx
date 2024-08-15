@@ -1,3 +1,5 @@
+//import {Buffer} from 'buffer';
+
 import React, {useEffect, useState} from 'react';
 import {
   View,
@@ -79,11 +81,12 @@ const sendCoordinates = async (
 
   try {
     const response = await axios.post(
-      'http://54.173.182.6:3000/api/coordinates',
+      'https://api.petwatch.tech/coordinates',
       data,
       {
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Basic YWRtaW46cGFzc3dvcmQ=`,
         },
       },
     );
@@ -235,7 +238,7 @@ const HomeScreen: React.FC = () => {
     }
 
     return () => {
-      BackgroundService.stop(); // Ensure the service stops if the component unmounts
+      BackgroundService.stop();
     };
   }, [isTracking]);
 
@@ -247,16 +250,12 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Image
-          source={require('../assets/app-icon1.png')}
+          source={require('../assets/logoPetwatch.png')}
           style={styles.icon}
         />
-        <Text style={styles.title}>Pet Watch</Text>
       </View>
       <View style={styles.petImageContainer}>
-        <Image
-          source={require('../assets/pet.png')} // Replace with the actual path to your pet image
-          style={styles.petImage}
-        />
+        <Image source={require('../assets/pet.png')} style={styles.petImage} />
       </View>
       {location && (
         <View style={styles.infoContainer}>
@@ -301,14 +300,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#e0f7fa',
+    backgroundColor: '#011f26',
     padding: 20,
   },
   icon: {
     width: 50,
     height: 50,
-    borderRadius: 50,
-    marginBottom: 20,
   },
   header: {
     flexDirection: 'row',
@@ -319,6 +316,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     marginBottom: 10,
+    color: 'white',
   },
   subtitle: {
     fontSize: 12,
@@ -331,6 +329,7 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 16,
     marginBottom: 10,
+    color: 'white',
   },
   button: {
     marginTop: 20,
@@ -363,7 +362,7 @@ const styles = StyleSheet.create({
   petImageContainer: {
     borderRadius: 100,
     borderWidth: 5,
-    borderColor: '#9FD4C7',
+    borderColor: '#f2a71bs',
     padding: 5,
     marginBottom: 20,
   },
@@ -373,11 +372,9 @@ const styles = StyleSheet.create({
     borderRadius: 75,
   },
   heroTitle: {
-    fontFamily: 'Poppins',
-    fontWeight: '800',
     margin: 0,
     padding: 0,
-    color: '#007BFF',
+    color: 'white',
     fontSize: 50,
   },
   trackingButton: {
