@@ -17,12 +17,14 @@ const HelloScreen: React.FC = ({navigation}: any) => {
   const [petID, setPetID] = useState('');
   const [cameraAuthorized, setCameraAuthorized] = useState(false);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [petName, setPetName] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPetID = async () => {
       const savedPetID = await AsyncStorage.getItem('petID');
       if (savedPetID) {
         setPetID(savedPetID);
+        fetchPetName(savedPetID);
       }
     };
 
@@ -63,6 +65,31 @@ const HelloScreen: React.FC = ({navigation}: any) => {
     }
   };
 
+  const fetchPetName = async (id: string) => {
+    try {
+      const response = await fetch(`https://api.petwatch.tech/pet/app/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic YWRtaW46MTAyMDc4NTIxNA==`,
+        },
+      });
+
+      if (response.status === 200) {
+        const data = await response.json();
+        console.log('Data:', data);
+        if (data.name) {
+          setPetName(data.name);
+        }
+      } else {
+        const errorData = await response.json();
+        Alert.alert('Error', errorData.message || 'Something went wrong');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Network error');
+    }
+  };
+
   const handleSavePetID = async (id: string) => {
     setPetID(id);
     await AsyncStorage.setItem('petID', id);
@@ -72,6 +99,39 @@ const HelloScreen: React.FC = ({navigation}: any) => {
     const scannedID = e.data;
     handleSavePetID(scannedID);
     setIsScannerVisible(false); // Hide the scanner after scanning
+  };
+
+  const handleSend = async () => {
+    try {
+      console.log('Sending request to API...');
+
+      const response = await fetch(
+        `https://api.petwatch.tech/pet/app/${petID}`, // Fixed the double slashes
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic YWRtaW46MTAyMDc4NTIxNA==`,
+          },
+        },
+      );
+
+      console.log('Response received:', response);
+
+      if (response.status === 200) {
+        const data = await response.json();
+        console.log('Data:', data);
+        console.log('Pet ID:', petID);
+        navigation.navigate('Home');
+      } else {
+        const errorData = await response.json();
+        console.error('Error:', errorData);
+        Alert.alert('Error', errorData.message || 'Something went wrong');
+      }
+    } catch (error: any) {
+      console.error('Fetch error:', error.message || error);
+      Alert.alert('Error', error.message || 'Network error');
+    }
   };
 
   return (
@@ -116,12 +176,7 @@ const HelloScreen: React.FC = ({navigation}: any) => {
         />
       )}
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => {
-          console.log('Pet ID:', petID);
-          navigation.navigate('Home');
-        }}>
+      <TouchableOpacity style={styles.button} onPress={handleSend}>
         <Text style={styles.buttonText}>Enviar</Text>
       </TouchableOpacity>
     </View>
@@ -172,6 +227,7 @@ const styles = StyleSheet.create({
     color: '#f2a71b',
     fontSize: 16,
     fontFamily: 'Poppins-Regular',
+    margin: 10,
   },
   buttonTouchable: {
     padding: 16,

@@ -1,5 +1,3 @@
-//import {Buffer} from 'buffer';
-
 import React, {useEffect, useState} from 'react';
 import {
   View,
@@ -11,14 +9,8 @@ import {
   Image,
   TouchableOpacity,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from 'react-native-geolocation-service';
-import {
-  accelerometer,
-  setUpdateIntervalForType,
-  SensorData,
-  SensorTypes,
-} from 'react-native-sensors';
-import {Subscription} from 'rxjs';
 import axios from 'axios';
 import BackgroundService from 'react-native-background-actions';
 
@@ -73,7 +65,14 @@ const sendCoordinates = async (
   longitude: number,
   setResponse: React.Dispatch<React.SetStateAction<string>>,
 ) => {
+  const savedPetID = await AsyncStorage.getItem('petID');
+  if (!savedPetID) {
+    console.error('No pet ID found');
+    return;
+  }
+
   const data = {
+    petID: savedPetID,
     lat: latitude,
     lon: longitude,
     sendDate: new Date().toISOString(),
@@ -81,12 +80,12 @@ const sendCoordinates = async (
 
   try {
     const response = await axios.post(
-      'https://api.petwatch.tech/coordinates',
+      `https://api.petwatch.tech/coordinates/app/${savedPetID}`,
       data,
       {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Basic YWRtaW46cGFzc3dvcmQ=`,
+          Authorization: `Basic YWRtaW46MTAyMDc4NTIxNA==`,
         },
       },
     );
@@ -146,6 +145,10 @@ const options = {
     delay: 60000,
     setResponse: () => {},
   },
+  notifications: {
+    showNotification: true,
+    isSilent: false,
+  },
 };
 
 const HomeScreen: React.FC = () => {
@@ -153,64 +156,19 @@ const HomeScreen: React.FC = () => {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [accelData, setAccelData] = useState<SensorData | null>(null);
   const [response, setResponse] = useState<string>('');
   const [isTracking, setIsTracking] = useState<boolean>(false);
 
   useEffect(() => {
-    const requestPermissionAndFetchLocation = async () => {
-      if (await requestLocationPermission()) {
-        Geolocation.getCurrentPosition(
-          position => {
-            const {latitude, longitude} = position.coords;
-            setLocation({latitude, longitude});
-          },
-          error => {
-            console.error('Geolocation error:', error);
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 30000,
-            maximumAge: 10000,
-          },
-        );
+    const loadPetID = async () => {
+      const savedPetID = await AsyncStorage.getItem('petID');
+      if (savedPetID) {
+        setIsTracking(true); // Start tracking automatically if ID exists
       }
     };
 
-    requestPermissionAndFetchLocation();
-
-    const locationIntervalId = setInterval(() => {
-      Geolocation.getCurrentPosition(
-        position => {
-          const {latitude, longitude} = position.coords;
-          setLocation({latitude, longitude});
-          if (isTracking) {
-            sendCoordinates(latitude, longitude, setResponse);
-          }
-        },
-        error => {
-          console.error('Geolocation error:', error);
-          setResponse(`Geolocation error: ${error.message}`);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 30000,
-          maximumAge: 10000,
-        },
-      );
-    }, 60000);
-
-    setUpdateIntervalForType(SensorTypes.accelerometer, 1000);
-    const accelSubscription: Subscription = accelerometer.subscribe({
-      next: (data: SensorData) => setAccelData(data),
-      error: error => console.error(error),
-    });
-
-    return () => {
-      clearInterval(locationIntervalId);
-      accelSubscription.unsubscribe();
-    };
-  }, [isTracking]);
+    loadPetID();
+  }, []);
 
   useEffect(() => {
     const startBackgroundTask = async () => {
@@ -263,24 +221,8 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.infoText}>Longitude: {location.longitude}</Text>
         </View>
       )}
-      {accelData && (
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>
-            Accelerometer X: {accelData.x.toFixed(2)}
-          </Text>
-          <Text style={styles.infoText}>
-            Accelerometer Y: {accelData.y.toFixed(2)}
-          </Text>
-          <Text style={styles.infoText}>
-            Accelerometer Z: {accelData.z.toFixed(2)}
-          </Text>
-        </View>
-      )}
       <TouchableOpacity
-        style={[
-          styles.trackingButton,
-          isTracking ? styles.stopButton : styles.startButton,
-        ]}
+        style={[styles.trackingButton]}
         onPress={toggleTracking}>
         <Text style={styles.buttonText}>
           {isTracking ? 'Stop Tracking' : 'Start Tracking'}
@@ -308,10 +250,11 @@ const styles = StyleSheet.create({
     height: 50,
   },
   header: {
+    position: 'absolute', // Position the header absolutely
+    top: 10, // Align to the top of the screen with some padding
+    left: 10, // Align to the left of the screen with some padding
     flexDirection: 'row',
     alignItems: 'center',
-    width: '100%',
-    justifyContent: 'flex-start',
   },
   title: {
     fontSize: 24,
@@ -331,21 +274,27 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: 'white',
   },
-  button: {
+  trackingButton: {
+    height: 40,
+    width: '80%',
+    borderRadius: 5,
+    borderColor: '#f2a71b',
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
     marginTop: 20,
-    borderRadius: 30,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
   },
-  sendButton: {
+  startButton: {
     backgroundColor: '#007BFF',
-    padding: 10,
-    borderRadius: 50,
-    marginTop: 20,
+  },
+  stopButton: {
+    backgroundColor: '#FF0000',
   },
   buttonText: {
-    color: '#FFF',
+    color: '#f2a71b',
     fontSize: 16,
+    fontFamily: 'Poppins-Regular',
   },
   responseContainer: {
     marginTop: 20,
@@ -362,7 +311,7 @@ const styles = StyleSheet.create({
   petImageContainer: {
     borderRadius: 100,
     borderWidth: 5,
-    borderColor: '#f2a71bs',
+    borderColor: '#f2a71b',
     padding: 5,
     marginBottom: 20,
   },
@@ -370,23 +319,6 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
     borderRadius: 75,
-  },
-  heroTitle: {
-    margin: 0,
-    padding: 0,
-    color: 'white',
-    fontSize: 50,
-  },
-  trackingButton: {
-    padding: 10,
-    borderRadius: 50,
-    marginTop: 20,
-  },
-  startButton: {
-    backgroundColor: '#007BFF',
-  },
-  stopButton: {
-    backgroundColor: '#FF0000',
   },
 });
 
