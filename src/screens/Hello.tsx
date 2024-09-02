@@ -1,15 +1,78 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
-  Button,
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  PermissionsAndroid,
+  Platform,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import QRCodeScanner from 'react-native-qrcode-scanner';
+import {RNCamera} from 'react-native-camera';
 
 const HelloScreen: React.FC = ({navigation}: any) => {
   const [petID, setPetID] = useState('');
+  const [cameraAuthorized, setCameraAuthorized] = useState(false);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+
+  useEffect(() => {
+    const loadPetID = async () => {
+      const savedPetID = await AsyncStorage.getItem('petID');
+      if (savedPetID) {
+        setPetID(savedPetID);
+      }
+    };
+
+    loadPetID();
+  }, []);
+
+  const requestCameraPermission = async () => {
+    try {
+      const granted = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+      );
+      if (granted) {
+        setCameraAuthorized(true);
+        setIsScannerVisible(true); // Show the scanner when permission is granted
+        console.log('Camera permission already granted');
+      } else {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'PetWatch needs access to your camera to scan QR codes.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          setCameraAuthorized(true);
+          setIsScannerVisible(true); // Show the scanner when permission is granted
+          console.log('Camera permission granted');
+        } else {
+          setCameraAuthorized(false);
+          Alert.alert('Camera permission denied');
+        }
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
+  const handleSavePetID = async (id: string) => {
+    setPetID(id);
+    await AsyncStorage.setItem('petID', id);
+  };
+
+  const handleScan = (e: any) => {
+    const scannedID = e.data;
+    handleSavePetID(scannedID);
+    setIsScannerVisible(false); // Hide the scanner after scanning
+  };
 
   return (
     <View style={styles.container}>
@@ -21,9 +84,37 @@ const HelloScreen: React.FC = ({navigation}: any) => {
         style={styles.input}
         placeholder="Ingresa el ID"
         value={petID}
-        onChangeText={setPetID}
+        onChangeText={text => handleSavePetID(text)}
         placeholderTextColor="#ffffff"
       />
+
+      {!isScannerVisible && (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={requestCameraPermission}>
+          <Text style={styles.buttonText}>Scan QR</Text>
+        </TouchableOpacity>
+      )}
+
+      {isScannerVisible && cameraAuthorized && (
+        <QRCodeScanner
+          onRead={handleScan}
+          flashMode={RNCamera.Constants.FlashMode.off}
+          topContent={
+            <Text style={styles.centerText}>
+              Scan the QR code to get the pet ID
+            </Text>
+          }
+          bottomContent={
+            <TouchableOpacity
+              style={styles.buttonTouchable}
+              onPress={() => setIsScannerVisible(false)} // Allow user to close scanner
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          }
+        />
+      )}
 
       <TouchableOpacity
         style={styles.button}
@@ -81,6 +172,15 @@ const styles = StyleSheet.create({
     color: '#f2a71b',
     fontSize: 16,
     fontFamily: 'Poppins-Regular',
+  },
+  buttonTouchable: {
+    padding: 16,
+  },
+  centerText: {
+    flex: 1,
+    fontSize: 18,
+    padding: 32,
+    color: '#777',
   },
 });
 
