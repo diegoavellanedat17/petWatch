@@ -38,8 +38,8 @@ mkdir -p android/app/src/main/assets
 cd android
 ./gradlew assembleRelease
 
-cd app/build/outputs/apk/release/
+cd app/build/outputs/apk/general/release
 
-adb install app-release.apk
+adb install app-general-release.apk
 
 ```
