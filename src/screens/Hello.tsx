@@ -79,6 +79,7 @@ const HelloScreen: React.FC = ({navigation}: any) => {
         const data = await response.json();
         console.log('Data:', data);
         if (data.name) {
+          await AsyncStorage.setItem('petName', data.name);
           setPetName(data.name);
         }
       } else {

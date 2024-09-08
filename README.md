@@ -21,7 +21,7 @@ npx react-native start
 
 ```bash
 adb devices
-npx react-native run-android
+npx react-native run-android --mode generalDebug
 ```
 
 ## Step 3: Generate the apk fr testing

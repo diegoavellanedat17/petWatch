@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {
   View,
   Text,
@@ -158,6 +159,19 @@ const HomeScreen: React.FC = () => {
   } | null>(null);
   const [response, setResponse] = useState<string>('');
   const [isTracking, setIsTracking] = useState<boolean>(false);
+  const [petName, setPetName] = useState<string | null>(null); // New state for pet's name
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadPetName = async () => {
+        const savedPetName = await AsyncStorage.getItem('petName');
+        if (savedPetName) {
+          setPetName(savedPetName);
+        }
+      };
+      loadPetName();
+    }, []),
+  );
 
   useEffect(() => {
     const loadPetID = async () => {
@@ -200,8 +214,16 @@ const HomeScreen: React.FC = () => {
     };
   }, [isTracking]);
 
-  const toggleTracking = () => {
-    setIsTracking(prev => !prev);
+  const toggleTracking = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (hasPermission) {
+      setIsTracking(prev => !prev);
+    } else {
+      Alert.alert(
+        'Permission denied',
+        'Location permission is required to track your pet.',
+      );
+    }
   };
 
   return (
@@ -212,6 +234,11 @@ const HomeScreen: React.FC = () => {
           style={styles.icon}
         />
       </View>
+      {petName && (
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoText}>{petName}</Text>
+        </View>
+      )}
       <View style={styles.petImageContainer}>
         <Image source={require('../assets/pet.png')} style={styles.petImage} />
       </View>
@@ -228,11 +255,6 @@ const HomeScreen: React.FC = () => {
           {isTracking ? 'Stop Tracking' : 'Start Tracking'}
         </Text>
       </TouchableOpacity>
-      {response && (
-        <View style={styles.responseContainer}>
-          <Text style={styles.responseText}>{response}</Text>
-        </View>
-      )}
     </View>
   );
 };
